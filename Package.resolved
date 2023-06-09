@@ -28,6 +28,15 @@
       }
     },
     {
+      "identity" : "swift-extensions-pack-linux",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/nerzh/swift-extensions-pack-linux",
+      "state" : {
+        "revision" : "074336fd5ea2dc5f4e95b8d68d73228ae5a6982f",
+        "version" : "1.0.0"
+      }
+    },
+    {
       "identity" : "swift-regular-expression",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/nerzh/swift-regular-expression.git",

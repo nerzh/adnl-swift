@@ -24,7 +24,7 @@ var targetDependencies: [Target.Dependency] = [
 ]
 
 #if os(Linux)
-packageDependencies.append(.package(url: "https://github.com/nerzh/swift-extensions-pack", .upToNextMajor(from: "1.2.8")))
+packageDependencies.append(.package(url: "https://github.com/nerzh/swift-extensions-pack", .upToNextMajor(from: "1.3.4")))
 #else
 packageDependencies.append(.package(path: "/Users/nerzh/mydata/swift_projects/swift-extensions-pack"))
 #endif
@@ -32,7 +32,7 @@ packageDependencies.append(.package(path: "/Users/nerzh/mydata/swift_projects/sw
 let package = Package(
     name: name,
     platforms: [
-        .macOS(.v12),
+        .macOS(.v11),
         .iOS(.v13),
     ],
     products: [

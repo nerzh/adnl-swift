@@ -7,45 +7,41 @@
 
 import Foundation
 import CryptoSwift
+import SwiftExtensionsPack
 
 public final class AESADNL {
-    let key: [UInt8]
-    let iv: [UInt8]
-    let cipher: AES
+    public let key: [UInt8]
+    public let iv: [UInt8]
+    public var cipher: (Cryptor & Updatable)
     
-    init(key: [UInt8], iv: [UInt8]) throws {
+    public init(key: [UInt8], iv: [UInt8], mode: Mode) throws {
         self.key = key
         self.iv = iv
-        self.cipher = try AES(key: key, blockMode: CTR(iv: iv), padding: .noPadding)
+        let tempCipher = try AES(key: key, blockMode: CTR(iv: iv), padding: .noPadding)
+        switch mode {
+        case .encryptor:
+            self.cipher = try tempCipher.makeEncryptor()
+        case .decryptor:
+            self.cipher = try tempCipher.makeDecryptor()
+        }
     }
     
-    func encrypt(_ data: Array<UInt8>) throws -> Data {
-        try .init(cipher.encrypt(data))
+    public func update(_ bytes: Array<UInt8>, isLast: Bool = false) throws -> Data {
+        try .init(cipher.update(withBytes: bytes, isLast: isLast))
     }
     
-    func decrypt(_ data: Array<UInt8>) throws -> Data {
-        try .init(cipher.decrypt(data))
+    public func update(_ data: Data, isLast: Bool = false) throws -> Data {
+        try .init(cipher.update(withBytes: data.bytes, isLast: isLast))
     }
     
-    func adnlHandshake(keys: ADNLKeys, params: ADNLAESParams, address: ADNLAddress) throws -> Data {
-        var key: Data = .init()
-        key.append(keys.shared[0..<16])
-        key.append(params.hash[16..<32])
-        
-        var nonce: Data = .init()
-        nonce.append(params.hash[0..<4])
-        nonce.append(keys.shared[20..<32])
-        
-        let cipher: Self = try .init(key: key.bytes, iv: nonce.bytes)
-        var payload: Data = .init()
-        try payload.append(cipher.encrypt(params.bytes))
-        
-        var packet: Data = .init()
-        packet.append(address.hash)
-        packet.append(keys.public)
-        packet.append(params.hash)
-        packet.append(payload)
-        
-        return packet
+    public func updateFinish() throws -> Data {
+        try .init(cipher.finish())
+    }
+}
+
+public extension AESADNL {
+    enum Mode {
+        case encryptor
+        case decryptor
     }
 }

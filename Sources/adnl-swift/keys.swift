@@ -11,21 +11,37 @@ import SwiftExtensionsPack
 
 public struct ADNLKeys {
     public typealias Keys = (publicKey: Data, sharedSecret: Data)
-    public let peer: Data
+    public let peerPublic: Data
     public let `public`: Data
-    public let shared: Data
+    public let sharedSecret: Data
     
     public init(privateKey: Data, peerPublicKey: Data) throws {
-        self.peer = peerPublicKey
+//        let privateKey = Data([
+//            246, 116, 7, 178, 228, 48, 202, 58,
+//            176, 18, 214, 185, 242, 220, 1, 6,
+//            114, 141, 225, 45, 165, 209, 92, 249,
+//            208, 98, 94, 132, 233, 224, 172, 103
+//        ])
+        self.peerPublic = peerPublicKey
         self.public = try Self.getPublicKey(privateKey: privateKey)
-        self.shared = Self.getSharedSecret(privateKey: privateKey, peer: peerPublicKey)
+        self.sharedSecret = Self.getSharedSecret(privateKey: privateKey, peer: peerPublicKey)
+//        
+//        pe("ADNLKeys - public", self.public.toHexadecimal)
+//        pe("ADNLKeys - peerPublic", self.peerPublic.toHexadecimal)
+//        pe("ADNLKeys - sharedSecret", sharedSecret.toHexadecimal)
+    }
+    
+    public init(privateKey: String, peerPublicKey: String) throws {
+        try self.init(privateKey: privateKey.dataFromHexOrBase64(), peerPublicKey: peerPublicKey.dataFromHexOrBase64())
     }
     
     public init(peerPublicKey: Data) throws {
-        self.peer = peerPublicKey
         let privateKey: Data = .init(randomBytes(count: 32))
-        self.public = try Self.getPublicKey(privateKey: privateKey)
-        self.shared = Self.getSharedSecret(privateKey: privateKey, peer: peerPublicKey)
+        try self.init(privateKey: privateKey, peerPublicKey: peerPublicKey)
+    }
+    
+    public init(peerPublicKey: String) throws {
+        try self.init(peerPublicKey: try peerPublicKey.dataFromHexOrBase64())
     }
     
     private static func getPublicKey(privateKey: Data) throws -> Data {

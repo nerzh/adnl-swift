@@ -13,18 +13,16 @@ public struct ADNLAddress {
     public let publicKey: Data
     private var _hash: Data?
     
-    public init(publicKey: [UInt8]) {
+    public init(publicKey: Data) {
         self.publicKey = Data(publicKey)
     }
     
+    public init(publicKey: [UInt8]) {
+        self.init(publicKey: Data(publicKey))
+    }
+    
     public init(publicKey: String) throws {
-        if publicKey.isHexNumber {
-            self.publicKey = try publicKey.remove0x.dataFromHexThrowing()
-        } else if publicKey.isBase64() {
-            self.publicKey = Data(base64Encoded: publicKey)!
-        } else {
-            throw ADNLError.mess("\(publicKey) undefined publicKey format")
-        }
+        self.init(publicKey: try publicKey.dataFromHexOrBase64())
     }
     
     public var hash: Data {

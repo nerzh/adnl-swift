@@ -13,18 +13,13 @@ import SwiftExtensionsPack
 let PACKET_MIN_SIZE: Int = 4 + 32 + 32
 
 public struct ADNLPacket {
-    private let payload: Data
-    private let nonce: Data
+    public let payload: Data
+    public let nonce: Data
     
     public init(payload: Data, nonce: Data = .init(randomBytes(count: 32))) {
         self.payload = payload
         self.nonce = nonce
-    }
-    
-    public init?(data: Data) throws {
-        guard let obj: Self = try Self.parse(data: data) else { return nil }
-        self.payload = obj.payload
-        self.nonce = obj.nonce
+//        self.nonce = Data([251, 90, 41, 69, 167, 63, 2, 148, 174, 239, 72, 100, 90, 84, 194, 163, 1, 154, 201, 9, 213, 80, 241, 33, 232, 241, 233, 68, 225, 45, 0, 8])
     }
     
     public var hash: Data {
@@ -59,28 +54,29 @@ public struct ADNLPacket {
         }
     }
     
-    private static func parse(data: Data) throws -> Self? {
+    public static func parse(data: Data) throws -> Self? {
         var cursor: Int = 0
         if data.count < 4 { return nil }
         let offset: Int = MemoryLayout<UInt32>.size
         cursor += offset
-        let size: UInt32 = .init([UInt8](data[0..<offset]), endian: .littleEndian)
-        if (data.count - offset) < Int(size) { return nil }
-        let nonce: Data = data[offset..<offset + 32]
+        let size: UInt32 = .init([UInt8](data[0..<cursor]), endian: .littleEndian)
+        if (data.count - cursor) < Int(size) { return nil }
+        let nonce: Data = data[cursor..<(cursor + 32)]
         cursor += 32
-        let payload: Data = data[offset..<offset + (Int(size) - (32 + 32))]
+        let payload: Data = data[cursor..<(cursor + (Int(size) - (32 + 32)))]
         cursor += (Int(size) - (32 + 32))
-        let hash: Data = data[offset..<offset + 32]
+        let hash: Data = data[cursor..<(cursor + 32)]
         cursor += 32
         var target: Data = .init()
         target.append(nonce)
         target.append(payload)
         target = target.sha256()
         
-        if !(hash == target) {
+        if hash != target {
             throw ADNLError("ADNLPacket: Bad packet hash.")
         }
         
-        return .init(payload: payload, nonce: nonce)
+        /// Init new Data(...) because after gets by range indexes of bytes is not overridden
+        return .init(payload: Data(payload), nonce: Data(nonce))
     }
 }
