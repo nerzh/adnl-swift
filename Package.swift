@@ -5,7 +5,7 @@ import PackageDescription
 let name: String = "adnl-swift"
 
 var packageDependencies: [Package.Dependency] = [
-    .package(url: "https://github.com/nerzh/swift-extensions-pack", exact: "2.9.0"),
+    .package(url: "https://github.com/nerzh/swift-extensions-pack", from: "2.10.0"),
     .package(url: "https://github.com/apple/swift-nio.git", from: "2.98.0"),
 ]
 
