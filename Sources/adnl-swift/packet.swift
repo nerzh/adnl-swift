@@ -61,16 +61,9 @@ public struct ADNLPacket {
     }
     
     public static func parse(data: Data) throws -> Self? {
-        if data.count < 4 { return nil }
-        // Decode without assuming alignment, native byte order, or a zero startIndex.
-        let size = data.prefix(4).enumerated().reduce(UInt32(0)) {
-            $0 | (UInt32($1.element) << ($1.offset * 8))
-        }
-        guard size >= 64 else {
-            throw ADNLError("ADNLPacket body must be at least 64 bytes, received \(size).")
-        }
-        guard UInt64(data.count - 4) >= UInt64(size) else { return nil }
-        let body = data.dropFirst(4).prefix(Int(size))
+        guard let size = try bodyLength(in: data) else { return nil }
+        guard data.count - 4 >= size else { return nil }
+        let body = data.dropFirst(4).prefix(size)
         let nonce = body.prefix(32)
         let payload = body.dropFirst(32).dropLast(32)
         let hash = body.suffix(32)
@@ -78,7 +71,22 @@ public struct ADNLPacket {
         if hash != target {
             throw ADNLError("ADNLPacket: Bad packet hash.")
         }
-        
+
         return try .init(payload: Data(payload), nonce: Data(nonce))
+    }
+
+    internal static func bodyLength(in data: Data) throws -> Int? {
+        guard data.count >= 4 else { return nil }
+        // Decode without assuming alignment, native byte order, or a zero startIndex.
+        let size = data.prefix(4).enumerated().reduce(UInt32(0)) {
+            $0 | (UInt32($1.element) << ($1.offset * 8))
+        }
+        guard size >= 64 else {
+            throw ADNLError("ADNLPacket body must be at least 64 bytes, received \(size).")
+        }
+        guard let length = Int(exactly: size), length <= Int.max - 4 else {
+            throw ADNLError("ADNLPacket body is too large for this platform.")
+        }
+        return length
     }
 }

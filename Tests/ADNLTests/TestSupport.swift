@@ -25,6 +25,18 @@ func assertADNLError<T>(_ message: String, file: StaticString = #filePath, line:
     }
 }
 
+func assertADNLError<T>(_ message: String, file: StaticString = #filePath, line: UInt = #line,
+                        _ operation: () async throws -> T) async {
+    do {
+        _ = try await operation()
+        XCTFail("Expected ADNLError", file: file, line: line)
+    } catch let error as ADNLError {
+        XCTAssertTrue(error.reason.contains(message), error.reason, file: file, line: line)
+    } catch {
+        XCTFail("Unexpected error: \(error)", file: file, line: line)
+    }
+}
+
 // RFC 8032 section 7.1 seeds/public keys and libsodium's ed25519_convert seed.
 // X25519 outputs were independently generated with libsodium 1.0.20.
 let keyVectors: [(seed: Data, publicKey: Data, montgomery: Data, scalar: Data)] = [

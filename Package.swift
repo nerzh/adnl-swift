@@ -6,10 +6,13 @@ let name: String = "adnl-swift"
 
 var packageDependencies: [Package.Dependency] = [
     .package(url: "https://github.com/nerzh/swift-extensions-pack", exact: "2.9.0"),
+    .package(url: "https://github.com/apple/swift-nio.git", from: "2.98.0"),
 ]
 
 var targetDependencies: [Target.Dependency] = [
     .product(name: "SwiftExtensionsPack", package: "swift-extensions-pack"),
+    .product(name: "NIOCore", package: "swift-nio"),
+    .product(name: "NIOPosix", package: "swift-nio"),
 ]
 
 let package = Package(
@@ -27,7 +30,12 @@ let package = Package(
             name: name,
             dependencies: targetDependencies
         ),
-        .testTarget(name: "ADNLTests", dependencies: ["adnl-swift"])
+        .testTarget(name: "ADNLTests", dependencies: [
+            "adnl-swift",
+            .product(name: "NIOCore", package: "swift-nio"),
+            .product(name: "NIOPosix", package: "swift-nio"),
+            .product(name: "NIOEmbedded", package: "swift-nio"),
+        ])
     ],
     swiftLanguageModes: [.v5]
 )

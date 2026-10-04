@@ -1,132 +1,94 @@
 # adnl-swift
 
-Create ADNL handshakes, encrypt and decrypt messages, and work with packets and peer keys in Swift. Your application provides the TCP connection and message payloads.
+An ADNL client with a built-in TCP transport powered by Apple SwiftNIO, for Linux and Apple platforms.
 
-## Quick start: handshake and messages
+## Send and receive a message
 
-This example exchanges messages between a client and server in memory, without a network connection.
+Use the peer's host, port, and public key. `payload` is your encoded ADNL application message.
 
 ```swift
 import Foundation
 import adnl_swift
 
-// Demo seed only. Load your own securely generated 32-byte seed in an application.
-let serverSeed = Data(repeating: 0x11, count: 32)
-let serverPublicKey = try Ed25519Wrapper.getPublicKey(privateKey: serverSeed)
-
-let client = try ADNLCipher(
-    peerPubKey: serverPublicKey.base64EncodedString(),
-    mode: .client
+let client = try ADNLClient(
+    host: host,
+    port: port,
+    peerPublicKey: publicKey
 )
 
-// Send these bytes first when using a TCP connection.
-let handshake = try ADNLHandshake.adnlHandshake(
-    keys: client.keys,
-    params: client.params,
-    address: client.address
-)
+try await client.connect()
 
-// On the server, accept the complete handshake using the server's private seed.
-let server = try ADNLHandshake.adnlHandshakeAssets(
-    handshake,
-    secretKey: serverSeed.base64EncodedString()
-)
-
-let message = Data("Hello from the client".utf8)
-let encryptedMessage = try client.encryptor.adnlSerializeMessage(data: message)
-let receivedMessage = try server.decryptor.adnlDeserializeMessage(data: encryptedMessage)
-print(String(decoding: receivedMessage, as: UTF8.self))
-
-let reply = Data("Hello from the server".utf8)
-let encryptedReply = try server.encryptor.adnlSerializeMessage(data: reply)
-let receivedReply = try client.decryptor.adnlDeserializeMessage(data: encryptedReply)
-print(String(decoding: receivedReply, as: UTF8.self))
-```
-
-Keep the same cipher for the lifetime of each connection and process data in order. For TCP, collect the complete 256-byte handshake before accepting it; keep any following bytes for message processing.
-
-`adnlDeserializeMessage(data:)` expects exactly one complete encrypted packet. Use the next example when TCP reads contain partial packets or several packets together.
-
-## Receiving messages in chunks
-
-Continuing with `client` and `server` from the quick start, send two more messages and simulate two TCP reads:
-
-```swift
-var encryptedStream = try client.encryptor.adnlSerializeMessage(data: Data("One".utf8))
-encryptedStream.append(
-    try client.encryptor.adnlSerializeMessage(data: Data("Two".utf8))
-)
-
-var receiveBuffer = Data()
-let chunks = [encryptedStream.prefix(7), encryptedStream.dropFirst(7)]
-
-for chunk in chunks {
-    receiveBuffer.append(try server.decryptor.update(chunk))
-
-    while let packet = try ADNLPacket.parse(data: receiveBuffer) {
-        print(String(decoding: packet.payload, as: UTF8.self))
-        receiveBuffer.removeFirst(packet.length)
+do {
+    try await client.send(payload)
+    if let response = try await client.receive() {
+        // Decode or handle the response bytes here.
+        print(response)
     }
-}
-// Prints "One" and "Two".
-```
-
-In your TCP reader, retain `receiveBuffer` between reads and feed each received chunk to `update` once. Set an application-specific buffer size limit. Parsing returns `nil` while a packet is incomplete and throws for invalid data.
-
-## Creating and reading packets
-
-Use `ADNLPacket` to work with packets before encryption:
-
-```swift
-let packet = ADNLPacket(payload: Data("Example payload".utf8))
-let serializedPacket = packet.data
-
-if let parsed = try ADNLPacket.parse(data: serializedPacket) {
-    print(String(decoding: parsed.payload, as: UTF8.self))
+    await client.close()
+} catch {
+    await client.close()
+    throw error
 }
 ```
 
-`packet.length` tells you how many bytes to remove from a receive buffer. For normal message sending, pass the payload directly to `adnlSerializeMessage(data:)`, which creates the packet for you.
+The public key can be `Data`, a hexadecimal string, or a Base64 string. `connect()` completes the handshake and consumes the server's acknowledgement. `send` and `receive` handle encryption and packets for you.
 
-## Keys and addresses
+## Receive multiple messages
 
-Using `serverPublicKey` from the quick start, generate local keys for a peer and obtain the peer's ADNL address:
+Keep the connected client and call `receive()` for each complete message. TCP reads may split or combine packets; the client handles this automatically.
 
 ```swift
-let keys = try ADNLKeys(peerPublicKey: serverPublicKey)
-let localPublicKey = keys.public
-let sharedSecret = keys.sharedSecret
-
-let address = try ADNLAddress(publicKey: serverPublicKey)
-print(address.hash.base64EncodedString())
+while let message = try await client.receive() {
+    // Handle one complete payload. Empty payloads are also returned.
+    print(message)
+}
+await client.close()
 ```
 
-To use your own identity, pass a stored 32-byte private seed. For example, the server identity from the quick start can derive keys for the client:
+`receive()` returns `nil` when the peer closes cleanly, and throws for invalid or truncated packets. One send and one receive can run at the same time; keep successive sends and successive receives sequential. Closing or cancelling an active operation closes the connection. Create a new client to reconnect.
+
+## Additional
+
+### Connection options
+
+The default connection timeout is 10 seconds and includes the handshake. The default maximum payload size is 16 MiB minus 64 bytes. You can override both:
 
 ```swift
-let serverKeys = try ADNLKeys(
-    privateKey: serverSeed,
-    peerPublicKey: client.keys.public
+let client = try ADNLClient(
+    host: host,
+    port: port,
+    peerPublicKey: publicKey,
+    connectionTimeout: 15,
+    maximumPayloadSize: 1024 * 1024
 )
 ```
 
-Key and address initializers accept `Data` or hexadecimal/Base64 strings. Private seeds and public keys must be 32 bytes.
+### Use your own transport
 
-## Encrypting raw data
-
-Use `AESADNL` when you need encryption without packet creation. Create separate encryptor and decryptor instances with matching keys and IVs:
+You can implement your own TCP transport, or adapt an existing connection, by conforming to `ADNLTransport`. Then pass your implementation to the client:
 
 ```swift
-let params = ADNLAESParams()
-let rawEncryptor = try AESADNL(key: params.txKey, iv: params.txNonce, mode: .encryptor)
-let rawDecryptor = try AESADNL(key: params.txKey, iv: params.txNonce, mode: .decryptor)
+let client = try ADNLClient(
+    host: host,
+    port: port,
+    peerPublicKey: publicKey,
+    transport: MyTransport()
+)
 
-var encryptedData = try rawEncryptor.update(Data("Hello, ".utf8))
-encryptedData.append(try rawEncryptor.update(Data("world!".utf8), isLast: true))
-
-let decryptedData = try rawDecryptor.update(encryptedData)
-print(String(decoding: decryptedData, as: UTF8.self))
-// Prints "Hello, world!".
+try await client.connect()
 ```
 
-`update` accepts `Data` or `[UInt8]` and preserves the stream position between calls. It returns all processed bytes immediately; `updateFinish()` returns empty `Data`.
+Your `MyTransport` implementation must be `Sendable` and provide these methods:
+
+```swift
+func connect(host: String, port: Int) async throws
+func send(_ data: Data) async throws
+func receive() async throws -> Data?
+func close() async
+```
+
+The transport must preserve byte order and write all bytes passed to `send`. Return a nonempty chunk from `receive`, or `nil` at EOF. `close` must be safe to repeat and promptly unblock pending operations, including a connection attempt. Reading and writing must be able to proceed concurrently.
+
+The transport only moves bytes; the client handles ADNL. A UDP socket cannot directly replace this ordered stream transport.
+
+The lower-level `ADNLCipher`, `ADNLHandshake`, `ADNLPacket`, `ADNLKeys`, `ADNLAddress`, and `AESADNL` APIs remain available for manual integration.
