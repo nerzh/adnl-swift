@@ -16,19 +16,11 @@ public struct ADNLKeys {
     public let sharedSecret: Data
     
     public init(privateKey: Data, peerPublicKey: Data) throws {
-//        let privateKey = Data([
-//            246, 116, 7, 178, 228, 48, 202, 58,
-//            176, 18, 214, 185, 242, 220, 1, 6,
-//            114, 141, 225, 45, 165, 209, 92, 249,
-//            208, 98, 94, 132, 233, 224, 172, 103
-//        ])
-        self.peerPublic = peerPublicKey
+        try Ed25519Wrapper.validateKeyLength(privateKey, name: "Ed25519 private seed")
+        try Ed25519Wrapper.validateKeyLength(peerPublicKey, name: "Ed25519 public key")
+        self.peerPublic = Data(peerPublicKey)
         self.public = try Self.getPublicKey(privateKey: privateKey)
-        self.sharedSecret = Self.getSharedSecret(privateKey: privateKey, peer: peerPublicKey)
-//        
-//        pe("ADNLKeys - public", self.public.toHexadecimal)
-//        pe("ADNLKeys - peerPublic", self.peerPublic.toHexadecimal)
-//        pe("ADNLKeys - sharedSecret", sharedSecret.toHexadecimal)
+        self.sharedSecret = try Self.getSharedSecret(privateKey: privateKey, peer: peerPublicKey)
     }
     
     public init(privateKey: String, peerPublicKey: String) throws {
@@ -36,7 +28,7 @@ public struct ADNLKeys {
     }
     
     public init(peerPublicKey: Data) throws {
-        let privateKey: Data = .init(randomBytes(count: 32))
+        let privateKey = randomData(count: 32)
         try self.init(privateKey: privateKey, peerPublicKey: peerPublicKey)
     }
     
@@ -48,8 +40,8 @@ public struct ADNLKeys {
         try Ed25519Wrapper.getPublicKey(privateKey: privateKey)
     }
     
-    private static func getSharedSecret(privateKey: Data, peer: Data) -> Data {
-        Ed25519Wrapper.getSharedKey(privateKey: privateKey, publicKey: peer)
+    private static func getSharedSecret(privateKey: Data, peer: Data) throws -> Data {
+        try Ed25519Wrapper.getSharedKey(privateKey: privateKey, publicKey: peer)
     }
 }
 

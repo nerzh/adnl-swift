@@ -6,36 +6,32 @@
 //
 
 import Foundation
-import CryptoSwift
 import SwiftExtensionsPack
 
 public final class AESADNL {
     public let key: [UInt8]
     public let iv: [UInt8]
-    public var cipher: (Cryptor & Updatable)
+    public var cipher: SEPCrypto.AESCTR
     
     public init(key: [UInt8], iv: [UInt8], mode: Mode) throws {
         self.key = key
         self.iv = iv
-        let tempCipher = try AES(key: key, blockMode: CTR(iv: iv), padding: .noPadding)
-        switch mode {
-        case .encryptor:
-            self.cipher = try tempCipher.makeEncryptor()
-        case .decryptor:
-            self.cipher = try tempCipher.makeDecryptor()
-        }
+        // CTR uses the same operation for encryption and decryption.
+        self.cipher = try SEPCrypto.AESCTR(key: Data(key), iv: Data(iv))
     }
     
     public func update(_ bytes: Array<UInt8>, isLast: Bool = false) throws -> Data {
-        try .init(cipher.update(withBytes: bytes, isLast: isLast))
+        try update(Data(bytes), isLast: isLast)
     }
     
     public func update(_ data: Data, isLast: Bool = false) throws -> Data {
-        try .init(cipher.update(withBytes: data.bytes, isLast: isLast))
+        // CTR has no padding or final block; isLast is retained for compatibility.
+        try cipher.update(data: data)
     }
     
     public func updateFinish() throws -> Data {
-        try .init(cipher.finish())
+        // Every update emits all input bytes, so there is nothing to flush.
+        Data()
     }
 }
 

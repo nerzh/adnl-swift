@@ -7,7 +7,6 @@
 
 import Foundation
 import SwiftExtensionsPack
-import CryptoSwift
 
 public struct ADNLAESParams {
     public let bytes: [UInt8]
@@ -38,7 +37,7 @@ public struct ADNLAESParams {
     
     public init(_ data: Data) throws {
         if data.count != 160 { throw ADNLError("Data lenght must be 160 bytes, but data length is \(data.count)") }
-        self.bytes = data.bytes
+        self.bytes = Array(data)
     }
     
     public init(_ data: String) throws {
@@ -67,7 +66,7 @@ public struct ADNLAESParams {
     
     public var hash: Data {
         get {
-            _hash ?? Data(bytes).sha256()
+            _hash ?? Data(SEPCrypto.SHA.sha256.digest(data: Data(bytes)))
         }
     }
 }

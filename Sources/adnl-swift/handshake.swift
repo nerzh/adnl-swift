@@ -19,7 +19,7 @@ public final class ADNLHandshake {
         nonce.append(params.hash[0..<4])
         nonce.append(keys.sharedSecret[20..<32])
 
-        let cipher: AESADNL = try .init(key: key.bytes, iv: nonce.bytes, mode: .encryptor)
+        let cipher: AESADNL = try .init(key: Array(key), iv: Array(nonce), mode: .encryptor)
         var payload: Data = .init()
         try payload.append(cipher.update(params.bytes))
         var packet: Data = .init()
@@ -33,11 +33,11 @@ public final class ADNLHandshake {
     
     public static func adnlParseHandshake(_ data: Data) throws -> HandshakeRequest {
         let handshakeLength: Int = 256
-        if data.count != handshakeLength { throw ADNLError.mess("HandshakeRequest must be \(handshakeLength) byte, but receive \(data.count) bytes") }
-        let nodeId: Data = .init(data[0..<32])
-        let pubKey: Data = .init(data[32..<64])
-        let checkSum: Data = .init(data[64..<96])
-        let encryptedData: Data = .init(data[96..<data.count])
+        if data.count != handshakeLength { throw ADNLError("HandshakeRequest must be \(handshakeLength) bytes, received \(data.count) bytes.") }
+        let nodeId = Data(data.prefix(32))
+        let pubKey = Data(data.dropFirst(32).prefix(32))
+        let checkSum = Data(data.dropFirst(64).prefix(32))
+        let encryptedData = Data(data.dropFirst(96))
         return HandshakeRequest(shortLocalNodeId: nodeId,
                                 senderPubKey: pubKey,
                                 checkSum: checkSum,
@@ -47,7 +47,7 @@ public final class ADNLHandshake {
     public static func adnlHandshakeAssets(_ data: Data, secretKey: String) throws -> ADNLCipher {
         let request: HandshakeRequest = try adnlParseHandshake(data)
         let keys = try ADNLKeys(privateKey: secretKey, peerPublicKey: request.senderPubKey.toHexadecimal)
-        if ADNLAddress(publicKey: keys.public).hash != request.shortLocalNodeId {
+        if try ADNLAddress(publicKey: keys.public).hash != request.shortLocalNodeId {
             throw ADNLError("Handshake: ADNLAddress is not valid")
         }
         var key: Data = .init()
@@ -58,7 +58,7 @@ public final class ADNLHandshake {
         nonce.append(request.checkSum[0..<4])
         nonce.append(keys.sharedSecret[20..<32])
         
-        var decryptor: ADNLDecryptor = try .init(key: key.bytes, iv: nonce.bytes)
+        let decryptor: ADNLDecryptor = try .init(key: Array(key), iv: Array(nonce))
         let aesParamsData: Data = try decryptor.update(request.encryptedData)
         let params: ADNLAESParams = try .init(aesParamsData)
         if params.hash != request.checkSum {

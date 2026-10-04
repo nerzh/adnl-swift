@@ -7,22 +7,22 @@
 
 import Foundation
 import SwiftExtensionsPack
-import CryptoSwift
 
 public struct ADNLAddress {
     public let publicKey: Data
     private var _hash: Data?
     
-    public init(publicKey: Data) {
+    public init(publicKey: Data) throws {
+        try Ed25519Wrapper.validateKeyLength(publicKey, name: "Ed25519 public key")
         self.publicKey = Data(publicKey)
     }
     
-    public init(publicKey: [UInt8]) {
-        self.init(publicKey: Data(publicKey))
+    public init(publicKey: [UInt8]) throws {
+        try self.init(publicKey: Data(publicKey))
     }
     
     public init(publicKey: String) throws {
-        self.init(publicKey: try publicKey.dataFromHexOrBase64())
+        try self.init(publicKey: publicKey.dataFromHexOrBase64())
     }
     
     public var hash: Data {
@@ -31,7 +31,7 @@ public struct ADNLAddress {
                 let typeEd25519: [UInt8] = [ 0xc6, 0xb4, 0x13, 0x48 ]
                 var data = Data(typeEd25519)
                 data.append(publicKey)
-                return data.sha256()
+                return Data(SEPCrypto.SHA.sha256.digest(data: data))
             }()
         }
     }
